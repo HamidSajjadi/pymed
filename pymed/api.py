@@ -6,10 +6,9 @@ import xml.etree.ElementTree as xml
 
 from typing import Union
 
-from .helpers import batches
-from .article import PubMedArticle
-from .book import PubMedBookArticle
-
+from pymed.helpers import batches
+from pymed.article import PubMedArticle
+from pymed.book import PubMedBookArticle
 
 # Base url for all queries
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov"
@@ -20,7 +19,7 @@ class PubMed(object):
     """
 
     def __init__(
-        self: object, tool: str = "my_tool", email: str = "my_email@example.com"
+            self: object, tool: str = "my_tool", email: str = "my_email@example.com", api_key: str = ''
     ) -> None:
         """ Initialization of the object.
 
@@ -30,6 +29,9 @@ class PubMed(object):
                             PMC (PubMed Central).
                 - email     String, email of the user of the tool. This parameter
                             is not required but kindly requested by PMC (PubMed Central).
+                
+                - api_key   NCBI_API_TOKEN to remove api rate limit. This parameter is 
+                            not required but kindly request by PMC
 
             Returns:
                 - None
@@ -38,15 +40,16 @@ class PubMed(object):
         # Store the input parameters
         self.tool = tool
         self.email = email
+        self.api_key = api_key
 
         # Keep track of the rate limit
         self._rateLimit = 3
         self._requestsMade = []
 
         # Define the standard / default query parameters
-        self.parameters = {"tool": tool, "email": email, "db": "pubmed"}
+        self.parameters = {"tool": tool, "email": email, "db": "pubmed", api_key: api_key}
 
-    def query(self: object, query: str, max_results: int = 100):
+    def query(self, query: str, max_results: int = 100):
         """ Method that executes a query agains the GraphQL schema, automatically
             inserting the PubMed data loader.
 
@@ -62,10 +65,24 @@ class PubMed(object):
         article_ids = self._getArticleIds(query=query, max_results=max_results)
 
         # Get the articles themselves
+        return self.getArticles(article_ids)
+
+    def getArticles(self, article_ids: list, batch_size: int = 250):
+        """ Method that given a list of pmids, retrieve document ids
+
+           Parameters:
+               - article_ids     list of pmids
+               - batch_size      size of mini batches that are requested from PMC
+
+           Returns:
+               - result    ExecutionResult, GraphQL object that contains the result
+                           in the "data" attribute.
+       """
+
         articles = list(
             [
                 self._getArticles(article_ids=batch)
-                for batch in batches(article_ids, 250)
+                for batch in batches(article_ids, batch_size)
             ]
         )
 
@@ -97,7 +114,7 @@ class PubMed(object):
 
         # Return the total number of results (without retrieving them)
         return total_results_count
-    
+
     def _exceededRateLimit(self) -> bool:
         """ Helper method to check if we've exceeded the rate limit.
 
@@ -106,13 +123,14 @@ class PubMed(object):
         """
 
         # Remove requests from the list that are longer than 1 second ago
-        self._requestsMade = [requestTime for requestTime in self._requestsMade if requestTime > datetime.datetime.now() - datetime.timedelta(seconds=1)]
+        self._requestsMade = [requestTime for requestTime in self._requestsMade if
+                              requestTime > datetime.datetime.now() - datetime.timedelta(seconds=1)]
 
         # Return whether we've made more requests in the last second, than the rate limit
         return len(self._requestsMade) > self._rateLimit
 
     def _get(
-        self: object, url: str, parameters: dict, output: str = "json"
+            self: object, url: str, parameters: dict, output: str = "json"
     ) -> Union[dict, str]:
         """ Generic helper method that makes a request to PubMed.
 
@@ -179,7 +197,7 @@ class PubMed(object):
         for book in root.iter("PubmedBookArticle"):
             yield PubMedBookArticle(xml_element=book)
 
-    def _getArticleIds(self: object, query: str, max_results: int) -> list:
+    def _getArticleIds(self, query: str, max_results: int) -> list:
         """ Helper method to retrieve the article IDs for a query.
 
             Parameters:
@@ -241,3 +259,10 @@ class PubMed(object):
 
         # Return the response
         return article_ids
+
+
+if __name__ == '__main__':
+    pmed = PubMed(api_key="135b3c9a802d2b6fb3e6bc715ab14e634b09")
+    articles = pmed.getArticles([26987624, 26330667])
+    for art in articles:
+        print(art)

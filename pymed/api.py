@@ -47,7 +47,7 @@ class PubMed(object):
         self._requestsMade = []
 
         # Define the standard / default query parameters
-        self.parameters = {"tool": tool, "email": email, "db": "pubmed", api_key: api_key}
+        self.parameters = {"tool": tool, "email": email, "db": "pubmed", "api_key": api_key}
 
     def query(self, query: str, max_results: int = 100):
         """ Method that executes a query agains the GraphQL schema, automatically

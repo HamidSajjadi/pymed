@@ -1,6 +1,15 @@
 from typing import TypeVar
+import re
 
-
+def remove_parenthesis(s: str) -> str:
+    """Given an string, removes all the text inside `()` and `[]`
+    Args:
+        s (str): [description]
+    Returns:
+        str: `s` without `()` or `[]`
+    """
+    return re.sub("[(\[].*?[)\]]", "", s)
+    
 def batches(iterable: list, n: int = 1) -> list:
     """ Helper method that creates batches from an iterable.
 

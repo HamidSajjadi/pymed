@@ -1,12 +1,11 @@
 import datetime
 import requests
 import itertools
-
 import xml.etree.ElementTree as xml
+import re
+from typing import Union, List, Tuple
 
-from typing import Union
-
-from pymed.helpers import batches
+from pymed.helpers import batches, remove_parenthesis
 from pymed.article import PubMedArticle
 from pymed.book import PubMedBookArticle
 
@@ -66,6 +65,15 @@ class PubMed(object):
 
         # Get the articles themselves
         return self.getArticles(article_ids)
+
+    def _get_translated_terms(self, response) -> List[str]:
+        terms = []
+        translated_query_stack = response.get("esearchresult", {}).get("translationstack", [])
+        for t in translated_query_stack:
+            if type(t) != str:
+                terms.append(remove_parenthesis(t['term']).replace('"', ''))
+
+        return terms
 
     def getArticles(self, article_ids: list, batch_size: int = 250):
         """ Method that given a list of pmids, retrieve document ids
@@ -197,7 +205,8 @@ class PubMed(object):
         for book in root.iter("PubmedBookArticle"):
             yield PubMedBookArticle(xml_element=book)
 
-    def _getArticleIds(self, query: str, max_results: int) -> list:
+    def _getArticleIds(self, query: str, max_results: int, get_translation=False) -> Union[
+        List[int], Tuple[List[int], List[str]]]:
         """ Helper method to retrieve the article IDs for a query.
 
             Parameters:
@@ -258,11 +267,15 @@ class PubMed(object):
             retrieved_count += int(response.get("esearchresult", {}).get("retmax"))
 
         # Return the response
-        return article_ids
+        if get_translation:
+            translated_terms = self._get_translated_terms(response)
+            return article_ids, translated_terms
+        else:
+            return article_ids
 
 
 if __name__ == '__main__':
     pmed = PubMed(api_key="135b3c9a802d2b6fb3e6bc715ab14e634b09")
-    articles = pmed.getArticles([26987624, 26330667])
-    for art in articles:
-        print(art)
+    article_ids, terms = pmed._getArticleIds("cancer test", max_results=10, get_translation=False)
+    print(article_ids)
+    print(terms)
